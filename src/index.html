@@ -1,0 +1,388 @@
+<html>
+    <head>
+    <title>Account management - Kee Vault</title>
+    <meta name="robots" content="none">
+<script nomodule>
+    oldBrowser = function () {
+        document.getElementById("oldBrowserWarning").innerText =
+            "This website allows you to manage your Kee Vault account. Like Kee Vault," +
+            " it relies on some modern web technologies so please ensure you load it in" +
+            " a modern web browser (the one you use for Kee Vault itself will do just fine).";
+    }
+    document.addEventListener('DOMContentReady', oldBrowser);
+</script>
+<script>
+    var _matomoLocalQueue = [];
+    var matomoInitialPageViewTracked = false;
+    var onRandomIdRetrievedFromStorage = function(val) {
+        clearTimeout(ridTimeout);
+        // We have no idea if the matomo tracker is ready 
+        // yet but we do know the _paq array will be there
+        if (val) {
+            _paq.push(["setUserId", val]);
+            _paq.push(["setCustomVariable", 1, "vtype", "known", "visit"]);
+        } else {
+            _paq.push(["setCustomVariable", 1, "vtype", "unknown", "visit"]);
+        }
+
+        if (matomoInitialPageViewTracked) {
+            _paq.push(['trackEvent', 'Account', 'SignIn', 'ExistingSession']);
+        } else {
+            _paq.push(['trackPageView']);
+            _paq.push(['enableLinkTracking']);
+            _paq.push(['enableHeartBeatTimer']);
+            while( (action = _matomoLocalQueue.shift()) !== undefined ) {
+                _paq.push(action);
+            }
+            matomoInitialPageViewTracked = true;
+        }
+    }
+
+    // If rid is being exceptionally slow, still try to log a page view
+    var ridTimeout = setTimeout(onRandomIdRetrievedFromStorage, 15000, null);
+
+    var trackMatomoAction = function(action) {
+        if (matomoInitialPageViewTracked) {
+            _paq.push(action);
+        } else {
+            // Could be up to 15 seconds before we can start sending tracking data 
+            // and it must be sent after the setCustomVariable paq commands so we
+            // queue it up in the mean time.
+            _matomoLocalQueue.push(action);
+        }
+    }
+
+    function crossDomainStorage(opts){
+    
+        var origin = opts.origin || '',
+            path = opts.path || '',
+            storage = opts.storage || 'localStorage',
+            cdstorage = {},
+            _iframe = null,
+            _iframeReady = false,
+            _origin = origin,
+            _path = path,
+            _queue = [],
+            _requests = {},
+            _id = 0;
+    
+        var supported = (function(){
+            try{
+                return window.JSON && storage in window && window[storage] !== null;
+            }catch(e){
+                return false;
+            }
+        })();
+        
+        var _sendRequest = function(data){
+            if (_iframe) {
+                _requests[data.request.id] = data;
+                _iframe.contentWindow.postMessage(JSON.stringify(data.request), _origin);
+            }
+        };
+    
+        var _iframeLoaded = function(){
+            _iframeReady = true;
+            if (_queue.length) {
+                for (var i=0, len=_queue.length; i < len; i++){
+                    _sendRequest(_queue[i]);
+                }
+                _queue = [];
+            }
+        };
+    
+        var _handleMessage = function (event) {
+            if (event.origin === _origin) {
+                try {
+                    var data = JSON.parse(event.data);
+                    if (typeof _requests[data.id] != 'undefined') {
+                        if (typeof _requests[data.id].callback === 'function') {
+                            _requests[data.id].callback(data.key, data.value);
+                        }
+                        delete _requests[data.id];
+                    } else if (data.type === 'onSet' && data.key === 'randomId') {
+                        // if not set, we can't recover - caller needs to fix the parent page script
+                        if (window.onRandomIdRetrievedFromStorage) {
+                            window.onRandomIdRetrievedFromStorage(data.value);
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    
+        cdstorage.getItem = function (key, callback) {
+            if (supported) {
+                var request = {
+                    id: ++_id,
+                    type: 'get',
+                    key: key,
+                    storage: storage
+                },
+                    data = {
+                        request: request,
+                        callback: callback
+                    };
+
+                if (_iframeReady) {
+                    _sendRequest(data);
+                } else {
+                    _queue.push(data);
+                }
+            }
+        };
+    
+    
+        //Init
+        if (!_iframe && supported) {
+            _iframe = document.createElement("iframe");
+            _iframe.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;";
+            document.body.appendChild(_iframe);
+
+            if (window.addEventListener) {
+                _iframe.addEventListener("load", function () { _iframeLoaded(); }, false);
+                window.addEventListener("message", function (event) { _handleMessage(event) }, false);
+            } else if (_iframe.attachEvent) {
+                _iframe.attachEvent("onload", function () { _iframeLoaded(); }, false);
+                window.attachEvent("onmessage", function (event) { _handleMessage(event) });
+            }
+            _iframe.src = _origin + _path;
+        }
+
+        return cdstorage;
+    }
+
+    var startup = function () {
+        cdstorage = crossDomainStorage({
+            origin: "https://rid.kee.pm", 
+            path: "/index.html"
+        });
+
+        cdstorage.getItem('randomId', function(key, value) {        
+            // if not set, we can't recover - caller needs to fix the parent page script
+            if (window.onRandomIdRetrievedFromStorage) {
+                window.onRandomIdRetrievedFromStorage(value);
+            }
+        });
+    };
+
+    document.addEventListener("DOMContentLoaded", startup);
+
+    var _paq = _paq || [];
+
+    window.piwikAsyncInit = function () {
+        try {
+            // This overrides the title for the single site tracker. It looks like
+            // this only works if the siteId is the "primary" site ID rather than
+            // one set through supplementary addTracker calls (in other words, it
+            // appears as though the siteId parameter passed to getAsyncTracker is
+            // actually ignored)
+            var singleTracker = Piwik.getAsyncTracker(null, 4);
+            singleTracker.setDocumentTitle(document.title);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    (function() {
+        var u="https://matomo.kee.pm/js/";
+        _paq.push(["disableCookies"]);
+        _paq.push(['setTrackerUrl', u]);
+        _paq.push(['setAPIUrl', u]);
+        _paq.push(['setSiteId', '4']);
+        _paq.push(['addTracker', u, '6']);
+        _paq.push(['discardHashTag', 'true']);
+        _paq.push(['setDocumentTitle', document.domain + "/" + document.title]);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u; s.parentNode.insertBefore(g,s);
+    })();
+</script>
+
+<!-- TODO: -->
+<!-- WARNING -->
+<!-- 
+In mobile browsers, we open the customer portal in a new window. So, please make sure you open the checkout as a result of an user action or else the browser will block the new window creation. -->
+
+<!-- Chrome and Firefox both don't allow breakpoints in
+     module scripts as of 2018 but in production we want to
+     run this as a module script to make sure old browsers 
+     don't choke on the syntax before displaying the incompatible message -->
+<script type="module">
+    let stage = "prod";
+    let destination = "manageAccount";
+    let idToken;
+        
+    const redirectToKeeVault = function () {
+        const hostname = stage === "prod" ? "keevault.pm" : "app-beta.kee.pm";
+        window.location = `https://${hostname}/#dest=${destination}`;
+    }
+
+    const initChargebee = function () {
+        Chargebee.init({
+            iframeOnly: true, // Force iframe on mobile browsers. Need to check how usable this is 
+            // but in theory saves user an extra click so hopefully it's good
+            site: stage === "prod" ? "keevault" : "keevault-test"
+        });
+        return Chargebee.getInstance();
+    }
+
+    const loadSubscriptionSession = function (chargebeeInstance) {
+        const idEndpoint = stage === "prod" ? "id.kee.pm" : "id-beta.kee.pm";
+        chargebeeInstance.setPortalSession(() => {
+            const responsePromise = fetch(`https://${idEndpoint}/createChargebeePortalSession?t=${idToken}`).then(response => {
+                if (response.status === 403) {
+                    redirectToKeeVault();
+                } else if (response.status !== 200) {
+                    document.getElementById("serverError").innerText = "Sorry! We can't connect to the subscription management server right now. Please check your internet connection is OK and retry in a minute. If it's a problem on our end, we're already aware of it and will get things running again very soon.";
+                }
+                return response.json();
+            }).then(body => {
+                body.customer_id = body.customer_id.replace(/\//g,'%2F');
+                body.linked_customers[0].customer_id = body.linked_customers[0].customer_id.replace(/\//g,'%2F');
+                return body;
+            });
+            return responsePromise;
+        });
+    }
+
+    let portalLoaded = false;
+
+    const portalCallbacks = {
+        loaded: function() {
+            // Optional
+            // called when chargebee portal is loaded
+            portalLoaded = true;
+            trackMatomoAction(["trackEvent", "Account", "PortalLoaded"]);
+        },
+        close: function() {
+            // Optional
+            // called when chargebee portal is closed
+            if (!portalLoaded) {
+                document.getElementById("serverError").innerText = "Sorry! We can't connect to the subscription management server right now. Please check your internet connection is OK and retry in a minute. If it's a problem on our servers, we're already aware of it and will get things running again soon.";
+                trackMatomoAction(["trackEvent", "Account", "PortalClosed", "ERROR"]);
+            } else {
+                document.getElementById("allDoneMessage").innerText = "Thanks. You can close this window now or reload it if you want to access your account again.";
+                trackMatomoAction(["trackEvent", "Account", "PortalClosed"]);
+            }
+        },
+        visit: function(sectionName) {
+            // Optional
+            // called whenever the customer navigates across different sections in portal
+            trackMatomoAction(["trackEvent", "Account", "PortalSectionView", sectionName]);
+        },
+        paymentSourceAdd: function() {
+            // Optional
+            // called whenever a new payment source is added in portal
+            trackMatomoAction(["trackEvent", "Account", "PaymentSourceAdd"]);
+        },
+        paymentSourceUpdate: function() {
+            // Optional
+            // called whenever a payment source is updated in portal
+            trackMatomoAction(["trackEvent", "Account", "PaymentSourceUpdate"]);
+        },
+        paymentSourceRemove: function() {
+            // Optional
+            // called whenever a payment source is removed in portal.
+            trackMatomoAction(["trackEvent", "Account", "PaymentSourceRemove"]);
+        },
+        subscriptionChanged: function(data) {
+            // Optional
+            // called whenever a subscription is changed
+            // data.subscription.id will give you the subscription id
+            // Make sure you whitelist your domain in the checkout settings page
+            trackMatomoAction(["trackEvent", "Account", "SubscriptionChanged"]);
+        },
+        subscriptionCustomFieldsChanged: function(data) {
+            // Optional
+            // called whenever a subscription custom fields are changed
+            // data.subscription.id will give you the subscription id
+            // Make sure you whitelist your domain in the checkout settings page
+            trackMatomoAction(["trackEvent", "Account", "SubscriptionCustomFieldsChanged"]);
+        },
+        subscriptionCancelled: function(data) {
+            // Optional
+            // called when a subscription is cancelled
+            // data.subscription.id will give you the subscription id
+            // Make sure you whitelist your domain in the checkout settings page
+            trackMatomoAction(["trackEvent", "Account", "SubscriptionCancelled"]);
+        },
+        subscriptionReactivated: function(data) {
+            // Optional
+            // called when a subscription is reactivated
+            // data.subscription.id will give you the subscription id
+            // Make sure you whitelist your domain in the checkout settings page
+            trackMatomoAction(["trackEvent", "Account", "SubscriptionReactivated"]);
+        }
+    };
+
+    const portalSectionName = (destination) => {
+        const sections = Chargebee.getPortalSections();
+        switch (destination) {
+            case "managePayment": return sections.PAYMENT_SOURCES;
+            default: throw new Error("Unknown portal section. Nothing to render.");
+        }
+    };
+
+    const startPortalIntegration = async function () {
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const chargebeeInstance= initChargebee();
+                loadSubscriptionSession(chargebeeInstance);
+
+                let portalSection;
+                if (destination !== "manageAccount") {
+                    portalSection = {
+                        sectionType: portalSectionName(destination)
+                    };
+                }
+                
+                let cbPortal = chargebeeInstance.createChargebeePortal();
+                cbPortal.open(portalCallbacks, portalSection);
+            } catch (e) {
+                document.getElementById("serverError").innerText = "Sorry! We can't connect to the subscription management server right now. Please check your internet connection is OK and retry in a minute. If it's a problem on our servers, we're already aware of it and will get things running again soon.";
+            }
+        });
+    }
+
+    let uriData = window.location.hash;
+    if (!uriData) {
+        redirectToKeeVault();
+    } else {
+        uriData = uriData.substring(1);
+        const keyvals = uriData.split(",");
+        for (const keyval of keyvals) {
+            const parts = keyval.split("=");
+            if (parts.length != 2) continue;
+            if (parts[0] === "dest") {
+                if (parts[1] === "managePayment") {
+                    destination = "managePayment";
+                } else if (parts[1] === "manageAccount") {
+                    destination = "manageAccount";
+                }
+            } else if (parts[0] === "stage") {
+                if (parts[1] !== "prod") {
+                    stage = "test";
+                }
+            } else if (parts[0] === "id") {
+                idToken = parts[1];
+            }
+        }
+
+        if (!idToken) {
+            redirectToKeeVault();
+        } else {
+            startPortalIntegration();
+        }
+        
+    }
+</script>
+</head>
+<body>
+    <div id="oldBrowserWarning"></div>
+    <div id="serverError"></div>
+    <div id="allDoneMessage"></div>
+    <script src="https://js.chargebee.com/v2/chargebee.js"></script>
+    <noscript><p><img src="https://matomo.kee.pm/js/?idsite=4&amp;rec=1" style="border:0;" alt="" />
+        <img src="https://matomo.kee.pm/js/?idsite=6&amp;rec=1" style="border:0;" alt="" /></p></noscript>
+</body>
+
+</html>
