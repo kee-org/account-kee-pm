@@ -215,10 +215,30 @@ In mobile browsers, we open the customer portal in a new window. So, please make
     let stage = "prod";
     let destination = "manageAccount";
     let idToken;
-        
+    let requestedReturnOrigin;
+
+    // Where the user can be sent back to, per stage. Kee Vault 2 on the web is hosted on an origin that is not fixed
+    // (for example a beta-only origin before it replaces Kee Vault 1) so it asks for its own origin using the optional
+    // ret=<origin> parameter. Anything not on this list is ignored and the stage's default host is used instead.
+    const defaultReturnOrigin = function () {
+        return stage === "prod" ? "https://keevault.pm" : "https://app-beta.kee.pm";
+    }
+
+    const isAllowedReturnOrigin = function (origin) {
+        if (stage === "prod") {
+            return origin === "https://keevault.pm";
+        }
+        return origin === "https://app-beta.kee.pm"
+            || origin === "https://app2-beta.kee.pm"
+            // Local development and tests of non-production builds only
+            || /^http:\/\/localhost(:[0-9]{1,5})?$/.test(origin);
+    }
+
     const redirectToKeeVault = function () {
-        const hostname = stage === "prod" ? "keevault.pm" : "app-beta.kee.pm";
-        window.location = `https://${hostname}/#dest=${destination}`;
+        const origin = requestedReturnOrigin && isAllowedReturnOrigin(requestedReturnOrigin)
+            ? requestedReturnOrigin
+            : defaultReturnOrigin();
+        window.location = `${origin}/#dest=${destination}`;
     }
 
     const initChargebee = function () {
@@ -369,6 +389,8 @@ In mobile browsers, we open the customer portal in a new window. So, please make
                 }
             } else if (parts[0] === "id") {
                 idToken = parts[1];
+            } else if (parts[0] === "ret") {
+                requestedReturnOrigin = parts[1];
             }
         }
 
